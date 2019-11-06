@@ -1,0 +1,11 @@
+parameters:
+
+services:
+    _defaults:
+        autowire: true
+        autoconfigure: true
+        public: true
+
+#    App\Subscriber\SendWelcomeEmailUponUserCreationSubscriber:
+#        tags:
+#            - { name: event_subscriber, register_public_methods: true }

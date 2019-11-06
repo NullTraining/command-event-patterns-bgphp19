@@ -1,0 +1,10 @@
+{
+    "100": {
+        "__className": "App\\OurBank\\Customer\\Customer",
+        "customerId": "100",
+        "firstName": "Alex",
+        "lastName": "Smith",
+        "emailAddress": "alex@example.com",
+        "phoneNumber": "+123 456-7890"
+    }
+}

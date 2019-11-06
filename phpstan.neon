@@ -1,0 +1,19 @@
+parameters:
+	bootstrap: tests/bootstrap.php
+	ignoreErrors:
+	- '#Parameter \#1 \$entity (.*) of method .*::serialize\(\) should be contravariant with parameter \$entity \(mixed\) of method DumbJson\\JsonRepository::serialize\(\)#'
+	- '#Parameter \#1 \$entity (.*) of method .*::getEntityId\(\) should be contravariant with parameter \$entity \(mixed\) of method DumbJson\\JsonRepository::getEntityId\(\)#'
+	symfony:
+		container_xml_path: var/cache/test/srcApp_KernelTestDebugContainer.xml
+	excludes_analyse:
+	    - src/Kernel.php
+	    - lib/DumbJson/JsonRepository.php
+includes:
+	- vendor/phpstan/phpstan-phpunit/extension.neon
+	- vendor/phpstan/phpstan-phpunit/rules.neon
+	- vendor/phpstan/phpstan-webmozart-assert/extension.neon
+	- vendor/phpstan/phpstan-symfony/extension.neon
+	- vendor/phpstan/phpstan-strict-rules/rules.neon
+	- vendor/phpstan/phpstan-mockery/extension.neon
+
+
