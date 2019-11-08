@@ -7,12 +7,15 @@ namespace App\InternetBanking\TransferMoney;
 use App\OurBank\Account\Account;
 use App\OurBank\Account\AccountId;
 use App\OurBank\Account\Accounts;
+use App\OurBank\Command\DepositMoney;
+use App\OurBank\Command\WithdrawMoney;
 use App\OurBank\Customer\Customer;
 use App\OurBank\Customer\CustomerId;
 use App\OurBank\Customer\Customers;
 use EmailSDK\EmailSender;
 use InterBankSDK\InterBankClient;
 use ShortMessageServiceSDK\SmsSender;
+use SimpleBus\SymfonyBridge\Bus\CommandBus;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -34,13 +37,14 @@ class TransferController extends AbstractController
     /** @var InterBankClient */
     private $interBankClient;
 
-    public function __construct()
+    public function __construct(CommandBus $commandBus)
     {
         $this->accounts        = new Accounts();
         $this->customers       = new Customers();
         $this->emailSender     = new EmailSender();
         $this->smsSender       = new SmsSender();
         $this->interBankClient = new InterBankClient();
+        $this->commandBus = $commandBus;
     }
 
     public function transfer(Request $request): Response
@@ -51,23 +55,16 @@ class TransferController extends AbstractController
         $targetId   = AccountId::fromString('ABC', $query->get('to'));
         $amount     = $query->getInt('amount');
 
-        $source = $this->loadAccount($sourceId);
-        $target = $this->loadAccount($targetId);
+        $withdraw = new WithdrawMoney($sourceId,$amount,$customerId);
+	    $deposit = new DepositMoney($targetId,$amount);
 
-        $this->guardCurrentUserOwnsAccount($customerId, $source);
-        $this->guardEnoughMoneyOnSourceAccount($source, $amount);
-
-        $this->withdraw($source, $amount);
-        $this->deposit($target, $amount);
-
-        $this->sendEmailAboutDeposit($target, $amount);
-        $this->sendSmsAboutDeposit($target, $amount);
-        $this->sendEmailAboutWithdrawal($source, $amount);
+        $this->commandBus->handle($withdraw);
+        $this->commandBus->handle($deposit);
 
         return new Response('OK');
     }
 
-    public function outgoingExternalTransfer(Request $request): Response
+	public function outgoingExternalTransfer(Request $request): Response
     {
         $query      = $request->query;
         $customerId = new CustomerId($query->get('customerId'));
@@ -75,15 +72,12 @@ class TransferController extends AbstractController
         $targetId   = AccountId::fromString('ABC', $query->get('to'));
         $amount     = $query->getInt('amount');
 
-        $source = $this->loadAccount($sourceId);
 
-        $this->guardCurrentUserOwnsAccount($customerId, $source);
-        $this->guardEnoughMoneyOnSourceAccount($source, $amount);
+	    $withdraw = new WithdrawMoney($sourceId,$amount,$customerId);
+		$notifyOtherBank = '..';
 
-        $this->withdraw($source, $amount);
-        $this->notifyReceivingBank($targetId, $amount);
-
-        $this->sendEmailAboutWithdrawal($source, $amount);
+	    $this->commandBus->handle($withdraw);
+	    $this->commandBus->handle($notifyOtherBank);
 
         return new Response('OK');
     }
@@ -96,14 +90,12 @@ class TransferController extends AbstractController
         $targetId      = AccountId::fromString('ABC', $query->get('to'));
         $amount        = $query->getInt('amount');
 
-        $target = $this->loadAccount($targetId);
 
-        $this->deposit($target, $amount);
+	    $deposit = new DepositMoney($targetId,$amount);
+	    $confirm = '..';
 
-        $this->confirmTransaction($transactionId, $sourceId, $amount);
-
-        $this->sendEmailAboutDeposit($target, $amount);
-        $this->sendSmsAboutDeposit($target, $amount);
+	    $this->commandBus->handle($deposit);
+	    $this->commandBus->handle($confirm);
 
         return new Response('OK');
     }
@@ -128,25 +120,7 @@ class TransferController extends AbstractController
         return $customer;
     }
 
-    private function guardCurrentUserOwnsAccount(CustomerId $customerId, Account $account): void
-    {
-        if ($customerId->getId() !== $account->getCustomerId()->getId()) {
-            throw new \Exception('Customer doesnt own the from account');
-        }
-    }
 
-    private function guardEnoughMoneyOnSourceAccount(Account $account, int $amount): void
-    {
-        if (false === $account->canWithdraw($amount)) {
-            throw new \Exception('Not enough money');
-        }
-    }
-
-    private function withdraw(Account $account, int $amount): void
-    {
-        $account->withdraw($amount);
-        $this->accounts->save($account);
-    }
 
     private function deposit(Account $account, int $amount): void
     {
@@ -172,14 +146,6 @@ class TransferController extends AbstractController
         $this->smsSender->send($customer->getPhoneNumberAsString(), $message);
     }
 
-    private function sendEmailAboutWithdrawal(Account $account, int $amount): void
-    {
-        $subject = 'New withdrawal ...';
-        $body    = ' Hi, We want to tell you that ...';
-
-        $customer = $this->loadCustomer($account->getCustomerId());
-        $this->emailSender->send('bank@bank.com', $customer->getEmailAddressAsString(), $subject, $body);
-    }
 
     private function notifyReceivingBank(AccountId $accountId, int $amount): void
     {

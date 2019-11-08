@@ -24,3 +24,18 @@ services:
 
     # add more service definitions when explicit configuration is needed
     # please note that last definitions always *replace* previous ones
+
+    App\OurBank\Handler\WithdrawMoneyHandler:
+        tags:
+            - { name: command_handler, handles: App\OurBank\Command\WithdrawMoney }
+        public: true
+
+    App\OurBank\Handler\DepositMoneyHandler:
+        tags:
+            - { name: command_handler, handles: App\OurBank\Command\DepositMoney }
+        public: true
+
+    App\OurBank\Listener\WithdrawalEmailNotificationListener:
+        tags:
+            - { name: event_subscriber, register_public_methods: true }
+        public: true
